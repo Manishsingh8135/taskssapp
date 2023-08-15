@@ -1,0 +1,162 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notes App</title>
+  <!-- Include Tailwind CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    /* Custom styles for the task list items */
+    .task-item {
+      display: flex;
+      justify-content: space-between; /* Align buttons to the right */
+      align-items: center; /* Vertically center the buttons */
+    }
+
+    /* Style for the edit and delete buttons */
+    .task-buttons button {
+      margin-left: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container mx-auto mt-8">
+    <h1 class="text-3xl font-semibold mb-4">Notes and Tasks</h1>
+
+    <!-- New Task Form -->
+    <form id="newTaskForm" class="space-y-2">
+      <div>
+        <label for="newTitle" class="block text-gray-700 font-bold">Title</label>
+        <input type="text" id="newTitle" name="newTitle" class="mt-1 p-2 border border-gray-300 rounded w-full" required>
+      </div>
+      <div>
+        <label for="newDescription" class="block text-gray-700 font-bold">Description</label>
+        <textarea id="newDescription" name="newDescription" rows="2" class="mt-1 p-2 border border-gray-300 rounded w-full"></textarea>
+      </div>
+      <div>
+        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">New Task</button>
+      </div>
+    </form>
+
+    <div id="tasks" class="space-y-4"></div>
+  </div>
+
+  <script>
+    async function fetchTasks() {
+      const response = await fetch('/api/tasks');
+      const tasks = await response.json();
+      return tasks;
+    }
+
+
+
+    document.getElementById('newTaskForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const newTitle = document.getElementById('newTitle').value;
+      const newDescription = document.getElementById('newDescription').value;
+
+      if (!newTitle.trim()) return; // Don't add empty tasks
+
+      const response = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle, description: newDescription }),
+      });
+
+      if (response.ok) {
+        // Clear form fields and refresh tasks
+        document.getElementById('newTitle').value = '';
+        document.getElementById('newDescription').value = '';
+        loadTasks();
+      }
+    });
+
+
+    // Function to get a random background color
+    function getRandomBackgroundColor() {
+      const colors = [
+        'bg-red-200', 'bg-yellow-200', 'bg-green-200', 'bg-blue-200', 'bg-indigo-200',
+        'bg-purple-200', 'bg-pink-200', 'bg-orange-200', 'bg-teal-200', 'bg-cyan-200',
+      ];
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    function createTaskElement(task) {
+      const taskElement = document.createElement('div');
+      taskElement.className = `relative px-4 py-2 border border-gray-300 shadow-md bg-white rounded-md overflow-hidden transition-all duration-300 transform hover:scale-105 ${getRandomBackgroundColor()}`;
+      taskElement.innerHTML = `
+        <h2 class="text-lg font-semibold">${task.title}</h2>
+        <p class="text-gray-600">${task.description || ''}</p>
+        <button id="edit-${task._id}" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded">Edit</button>
+        <button id="delete-${task._id}" class="mt-2 bg-red-500 text-white px-4 py-2 rounded">Delete</button>
+      `;
+
+      // Edit and Delete buttons
+      const editButton = taskElement.querySelector(`#edit-${task._id}`);
+      const deleteButton = taskElement.querySelector(`#delete-${task._id}`);
+
+      // Expandable description
+      const descriptionElement = document.createElement('p');
+      descriptionElement.className = 'text-gray-600 mt-2 opacity-0 max-h-0 overflow-hidden transition-all duration-300';
+      descriptionElement.textContent = task.description || '';
+      taskElement.appendChild(descriptionElement);
+
+      // Edit task content
+      editButton.addEventListener('click', (event) => {
+        event.stopPropagation(); // Prevents the click from expanding the description
+        const newTitle = prompt('Edit task title:', task.title);
+        const newDescription = prompt('Edit task description:', task.description);
+        if (newTitle !== null && newDescription !== null) {
+          task.title = newTitle;
+          task.description = newDescription;
+          updateTask(task);
+        }
+      });
+
+      // Delete task
+      deleteButton.addEventListener('click', async (event) => {
+        event.stopPropagation(); // Prevents the click from expanding the description
+        const confirmDelete = confirm('Are you sure you want to delete this task?');
+        if (confirmDelete) {
+          await fetch(`/api/tasks/${task._id}`, { method: 'DELETE' });
+          loadTasks();
+        }
+      });
+
+      // Add click event to expand/collapse description
+      taskElement.addEventListener('click', () => {
+        descriptionElement.classList.toggle('opacity-0', !descriptionElement.classList.contains('opacity-0'));
+        descriptionElement.classList.toggle('max-h-0', !descriptionElement.classList.contains('max-h-0'));
+      });
+
+      return taskElement;
+    }
+
+    async function updateTask(task) {
+      await fetch(`/api/tasks/${task._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(task),
+      });
+      loadTasks();
+    }
+
+    async function loadTasks() {
+      const tasksContainer = document.getElementById('tasks');
+      tasksContainer.innerHTML = ''; // Clear existing tasks
+
+      const tasks = await fetchTasks();
+      tasks.forEach((task) => {
+        const taskElement = createTaskElement(task);
+        tasksContainer.appendChild(taskElement);
+      });
+    }
+
+    // Initial load
+    loadTasks();
+  </script>
+</body>
+</html>
